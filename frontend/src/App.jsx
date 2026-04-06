@@ -229,7 +229,8 @@ export default function App() {
 
       if (!resp.ok) throw new Error(`Error ${resp.status}`);
       const data = await resp.json();
-      const parsed = JSON.parse(data.result);
+      const clean = data.result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const parsed = JSON.parse(clean);
       setAiRes(parsed);
     } catch (err) {
       setAiError(`No se pudo conectar al backend (${API}). Asegúrate de que esté corriendo.`);
