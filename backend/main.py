@@ -6,11 +6,11 @@ import os
 
 app = FastAPI(title="Aerya NLP Proxy")
 
-# CORS - permitir tu frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción: ["https://tu-usuario.github.io"]
-    allow_methods=["POST"],
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
