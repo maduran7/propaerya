@@ -199,6 +199,167 @@ function Terminal() {
   );
 }
 
+function CICDPipeline() {
+  const STAGES = [
+    { id: "push",     icon: "⬆", name: "git push",  sub: "origin main"         },
+    { id: "checkout", icon: "✓", name: "checkout",  sub: "actions/checkout@v4" },
+    { id: "install",  icon: "📦", name: "npm ci",    sub: "deps & cache"        },
+    { id: "build",    icon: "🔨", name: "build",     sub: "vite build"          },
+    { id: "test",     icon: "🧪", name: "pytest",    sub: "NLP accuracy ≥96%"   },
+    { id: "deploy",   icon: "🚀", name: "deploy",    sub: "gh-pages"            },
+  ];
+
+  const [state, setState] = useState(STAGES.map(() => "idle"));
+  const [times, setTimes] = useState(STAGES.map(() => "—"));
+  const [logLines, setLogLines] = useState([]);
+  const [running, setRunning] = useState(false);
+  const logRef = useRef(null);
+
+  const DURATIONS = [0, 900, 3200, 12100, 8400, 4700];
+
+  const addLine = useCallback((html, delay) => new Promise(r => setTimeout(() => {
+    setLogLines(p => [...p, html]);
+    r();
+  }, delay)), []);
+
+  const reset = useCallback(() => {
+    if (running) return;
+    setState(STAGES.map(() => "idle"));
+    setTimes(STAGES.map(() => "—"));
+    setLogLines([]);
+  }, [running]);
+
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [logLines]);
+
+  const setS = (i, s, t) => {
+    setState(p => { const n = [...p]; n[i] = s; return n; });
+    setTimes(p => { const n = [...p]; n[i] = t; return n; });
+  };
+
+  const runSuccess = useCallback(async () => {
+    if (running) return;
+    setRunning(true); reset();
+    await new Promise(r => setTimeout(r, 10));
+    setLogLines([]);
+
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
+    setS(0, "done", "✓");
+    await addLine('<span class="p-line pl-dim">$ git push origin main</span>', 0);
+    await addLine('<span class="p-line pl-grn">✓ Triggered: deploy.yml</span>', 350);
+
+    setS(1, "active", "...");
+    await addLine('<span class="p-line pl-blu">─ Job: ci · ubuntu-latest</span>', 600);
+    await delay(800);
+    setS(1, "done", "✓ 0.8s");
+    await addLine('<span class="p-line pl-grn">  ✓ Checkout complete</span>', 1400);
+
+    setS(2, "active", "...");
+    await addLine('<span class="p-line pl-dim">  Run: npm ci</span>', 1800);
+    await addLine('<span class="p-line pl-dim">  added 347 packages in 3s</span>', 2400);
+    await delay(900);
+    setS(2, "done", "✓ 3.2s");
+
+    setS(3, "active", "...");
+    await addLine('<span class="p-line pl-ylw">  vite v5.4.1 building for production...</span>', 3400);
+    await addLine('<span class="p-line pl-dim">  dist/assets/index.js  142.3 kB</span>', 4000);
+    await delay(800);
+    setS(3, "done", "✓ 12.1s");
+
+    setS(4, "active", "...");
+    await addLine('<span class="p-line pl-dim">  Run: pytest tests/ -q</span>', 4900);
+    await addLine('<span class="p-line pl-dim">  234 passed in 8.4s</span>', 5400);
+    await addLine('<span class="p-line pl-grn">  ✓ NLP accuracy: 96.8% ≥ threshold 96%</span>', 5800);
+    await delay(700);
+    setS(4, "done", "✓ 8.4s");
+
+    setS(5, "active", "...");
+    await addLine('<span class="p-line pl-blu">─ Job: deploy · needs: ci ✓</span>', 6700);
+    await addLine('<span class="p-line pl-dim">  peaceiris/actions-gh-pages@v4</span>', 7100);
+    await addLine('<span class="p-line pl-dim">  Publishing to gh-pages...</span>', 7500);
+    await delay(900);
+    setS(5, "done", "✓ 4.7s");
+    await addLine('<span class="p-line pl-mag">🚀 Live → https://usuario.github.io/propuesta-aerya</span>', 8400);
+    await addLine('<span class="p-line pl-grn">✓ Workflow succeeded · 29.4s total</span>', 8800);
+
+    setRunning(false);
+  }, [running, reset, addLine]);
+
+  const runFail = useCallback(async () => {
+    if (running) return;
+    setRunning(true); reset();
+    await new Promise(r => setTimeout(r, 10));
+    setLogLines([]);
+    const delay = (ms) => new Promise(r => setTimeout(r, ms));
+
+    setS(0, "done", "✓");
+    await addLine('<span class="p-line pl-dim">$ git push origin main</span>', 0);
+    await addLine('<span class="p-line pl-grn">✓ Triggered: deploy.yml</span>', 350);
+
+    setS(1, "active", "...");
+    await delay(700); setS(1, "done", "✓ 0.8s");
+    await addLine('<span class="p-line pl-grn">  ✓ Checkout complete</span>', 1200);
+
+    setS(2, "active", "...");
+    await delay(900); setS(2, "done", "✓ 3.2s");
+
+    setS(3, "active", "...");
+    await addLine('<span class="p-line pl-ylw">  vite v5.4.1 building for production...</span>', 2400);
+    await delay(700); setS(3, "done", "✓ 11.8s");
+
+    setS(4, "active", "...");
+    await addLine('<span class="p-line pl-dim">  Run: pytest tests/ -q</span>', 3500);
+    await addLine('<span class="p-line pl-dim">  234 passed in 8.4s</span>', 4000);
+    await addLine('<span class="p-line pl-red">  FAIL: NLP accuracy 94.1% < threshold 96%</span>', 4600);
+    await addLine('<span class="p-line pl-red">  AssertionError: model regression detected</span>', 5000);
+    setS(4, "fail", "✕ 8.4s");
+    setS(5, "fail", "skipped");
+    await addLine('<span class="p-line pl-red">✕ Job ci failed · deploy was blocked</span>', 5400);
+    await addLine('<span class="p-line pl-dim">  El deploy se cancela — el modelo degradó.</span>', 5700);
+
+    setRunning(false);
+  }, [running, reset, addLine]);
+
+  return (
+    <div className="pipeline-wrap">
+      <div className="pipeline-stages">
+        {STAGES.map((s, i) => (
+          <>
+            <div key={s.id} className={`p-stage${state[i] === "idle" ? "" : " p-" + state[i]}`}>
+              <span className="p-icon">{s.icon}</span>
+              <span className="p-name">{s.name}</span>
+              <span className="p-sub">{s.sub}</span>
+              <span className="p-time">{times[i]}</span>
+            </div>
+            {i < STAGES.length - 1 && (
+              <div key={`a${i}`} className={`p-arrow${state[i] === "done" ? " p-lit" : ""}`}>→</div>
+            )}
+          </>
+        ))}
+      </div>
+      <div className="pipeline-controls">
+        <button className="p-btn p-run" onClick={runSuccess} disabled={running}>▶ Run pipeline</button>
+        <button className="p-btn p-err" onClick={runFail} disabled={running}>✕ Simulate failure</button>
+        <button className="p-btn" onClick={reset} disabled={running}>↺ Reset</button>
+      </div>
+      <div className="p-log">
+        <div className="p-log-bar">
+          <div className="p-dot" style={{ background: "#ff5f57" }} />
+          <div className="p-dot" style={{ background: "#febc2e" }} />
+          <div className="p-dot" style={{ background: "#28c840" }} />
+          <span className="p-log-title">aerya-ci.yml — GitHub Actions</span>
+        </div>
+        <div className="p-log-body" ref={logRef} style={{ maxHeight: 160, overflowY: "auto" }}>
+          {logLines.map((l, i) => <span key={i} dangerouslySetInnerHTML={{ __html: l }} />)}
+          {!running && logLines.length === 0 && <span className="p-line pl-dim">Presioná "Run pipeline" para ver el CI/CD en acción →</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [sel, setSel] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -340,7 +501,43 @@ export default function App() {
         .term-btn:disabled{opacity:0.4;cursor:not-allowed}
         .term-clear{padding:0.35rem 0.7rem;background:rgba(255,87,87,0.06);border:1px solid rgba(255,87,87,0.18);border-radius:6px;color:#ff5757;font-family:monospace;font-size:0.56rem;cursor:pointer;margin-left:auto}
 
-        .metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
+        .pipeline-wrap{margin:0 0 1.5rem;overflow-x:auto}
+        .pipeline-stages{display:flex;align-items:center;gap:0;margin-bottom:1rem;min-width:580px}
+        .p-stage{flex:1;background:#111827;border:1px solid #1e293b;border-radius:10px;padding:12px 8px;text-align:center;transition:all 0.4s;position:relative}
+        .p-stage.p-done{border-color:rgba(0,230,138,0.4);background:rgba(0,230,138,0.04)}
+        .p-stage.p-active{border-color:rgba(0,184,212,0.5);background:rgba(0,184,212,0.05)}
+        .p-stage.p-fail{border-color:rgba(255,87,87,0.4);background:rgba(255,87,87,0.04)}
+        .p-icon{font-size:1rem;display:block;margin-bottom:4px}
+        .p-name{font-family:'JetBrains Mono',monospace;font-size:0.56rem;font-weight:700;color:#e2e8f0;display:block;letter-spacing:0.5px}
+        .p-sub{font-size:0.48rem;color:#6b7a90;margin-top:2px;display:block;font-family:monospace}
+        .p-time{font-size:0.48rem;margin-top:4px;display:block;font-family:monospace}
+        .p-done .p-time{color:${G}}
+        .p-active .p-time{color:${C}}
+        .p-fail .p-time{color:#ff5757}
+        .p-arrow{width:22px;flex-shrink:0;text-align:center;font-size:0.7rem;color:#2d3a4d;transition:color 0.3s}
+        .p-arrow.p-lit{color:${G}}
+        .pipeline-controls{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap}
+        .p-btn{font-family:'JetBrains Mono',monospace;font-size:0.6rem;padding:0.45rem 1rem;border-radius:7px;cursor:pointer;border:1px solid rgba(0,230,138,0.25);background:rgba(0,230,138,0.06);color:${G};transition:all 0.2s}
+        .p-btn:hover{background:rgba(0,230,138,0.12)}
+        .p-btn:disabled{opacity:0.35;cursor:not-allowed}
+        .p-btn.p-run{background:${G};color:#06080d;border-color:${G};font-weight:700}
+        .p-btn.p-run:hover{box-shadow:0 4px 15px rgba(0,230,138,0.3)}
+        .p-btn.p-err{border-color:rgba(255,87,87,0.3);background:rgba(255,87,87,0.06);color:#ff5757}
+        .p-btn.p-err:hover{background:rgba(255,87,87,0.12)}
+        .p-log{background:#0a0e17;border:1px solid #1e293b;border-radius:10px;overflow:hidden}
+        .p-log-bar{background:#111827;padding:7px 12px;display:flex;align-items:center;gap:6px;border-bottom:1px solid #1e293b}
+        .p-dot{width:8px;height:8px;border-radius:50%}
+        .p-log-title{font-family:monospace;font-size:0.52rem;color:#6b7a90;margin-left:4px}
+        .p-log-body{padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:0.6rem;line-height:1.75;min-height:140px;color:#e6edf3}
+        .p-line{display:block}
+        .pl-dim{color:#4a5a72}
+        .pl-grn{color:${G}}
+        .pl-blu{color:${B}}
+        .pl-ylw{color:${A}}
+        .pl-red{color:#ff5757}
+        .pl-mag{color:#c084fc}
+
+
         .metric{background:#111827;border:1px solid #1e293b;border-radius:12px;padding:1.4rem;text-align:center;transition:all 0.3s}
         .metric:hover{border-color:rgba(0,230,138,0.25);box-shadow:0 0 25px rgba(0,230,138,0.08)}
         .counter-val{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:2rem;color:${G}}
@@ -371,14 +568,32 @@ export default function App() {
           .nlp-grid,.profile-grid{grid-template-columns:1fr}
           .model-grid{grid-template-columns:1fr 1fr}
           .metrics-grid{grid-template-columns:repeat(2,1fr)}
-          .how-grid{grid-template-columns:1fr}
+          .how-grid{grid-template-columns:1fr!important}
           .hero h1{font-size:clamp(1.8rem,5vw,2.5rem)}
           .hero-btns{flex-direction:column}
+          .pipeline-stages{min-width:0;overflow-x:auto}
+          .p-sub{display:none}
+          .p-arrow{width:14px;font-size:0.6rem}
+          .devops-two-col{grid-template-columns:1fr!important}
+          .devops-three-col{grid-template-columns:1fr!important}
         }
         @media(max-width:600px){
-          .model-grid,.metrics-grid{grid-template-columns:1fr 1fr}
+          .model-grid{grid-template-columns:1fr!important}
+          .metrics-grid{grid-template-columns:1fr 1fr}
           .ai-input{flex-direction:column}
           .hero{padding-top:5rem}
+          .sec{padding:3rem 1rem}
+          .pipeline-controls{flex-wrap:wrap}
+          .p-btn{font-size:0.55rem;padding:0.4rem 0.7rem}
+          .p-stage{min-width:56px;padding:8px 4px}
+          .p-icon{font-size:0.8rem}
+          .p-name{font-size:0.44rem}
+          .p-arrow{width:10px;font-size:0.5rem}
+          .term-cmds{gap:4px}
+          .term-btn{font-size:0.5rem;padding:0.3rem 0.5rem}
+          .devops-two-col{grid-template-columns:1fr!important}
+          .devops-three-col{grid-template-columns:1fr!important}
+          .profile-text p{font-size:0.8rem}
         }
       `}</style>
 
@@ -541,19 +756,56 @@ export default function App() {
       <section id="devops" className="sec">
         <div className="sec-label">04 · DevOps & CI/CD</div>
         <h2 className="sec-title">De código a producción sin romper nada</h2>
-        <p className="sec-desc">Cada cambio en Aerya — ya sea un nuevo modelo, una mejora en el RAG o un fix — pasa por un pipeline automatizado que garantiza que nada se rompe antes de llegar a los usuarios.</p>
+        <p className="sec-desc">Esta propuesta misma fue desplegada con CI/CD real. Cada cambio pasa por un pipeline de GitHub Actions que valida, construye y publica automáticamente — igual que lo haría en producción para Aerya.</p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "2rem" }}>
+        {/* CI/CD pipeline visual */}
+        <CICDPipeline />
+
+        <div className="devops-three-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", margin: "2rem 0" }}>
+          {[
+            { icon: "⚡", title: "Trigger automático", desc: "Cada push a main activa el workflow. No hay pasos manuales. Si el código cambia, el pipeline corre." },
+            { icon: "🧪", title: "Tests primero", desc: "Lint, unit tests y validación de precisión del modelo NLP antes de cualquier deploy. Si falla un test, el deploy se bloquea." },
+            { icon: "🚀", title: "Deploy sin downtime", desc: "Estrategia blue-green: la nueva versión sube en paralelo y el tráfico se migra solo cuando está lista. Cero interrupciones." },
+          ].map((c, i) => (
+            <div key={i} className="how-card">
+              <div className="how-num" style={{ fontSize: "1.2rem" }}>{c.icon}</div>
+              <h3>{c.title}</h3>
+              <p>{c.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="devops-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "2rem" }}>
           <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 12, padding: "1.5rem" }}>
-            <h3 style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.6rem", color: "#e2e8f0" }}>🔄 Flujo de Trabajo</h3>
-            <p style={{ fontSize: "0.75rem", color: "#a0aec0", lineHeight: 1.7 }}>
-              Un desarrollador hace push a <span style={{ color: G }}>dev</span> → GitHub Actions corre tests automáticos y valida que el modelo de IA mantiene su precisión → si pasa, se despliega a <span style={{ color: B }}>staging</span> para QA → al aprobar el PR, se despliega a <span style={{ color: A }}>producción</span> con estrategia blue-green (sin downtime).
-            </p>
+            <div style={{ fontFamily: "monospace", fontSize: "0.58rem", color: G, letterSpacing: 1, marginBottom: "0.6rem", textTransform: "uppercase" }}>aerya-ci.yml — fragmento real</div>
+            <pre style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.6rem", color: "#a0aec0", lineHeight: 1.9, overflow: "hidden" }}>{`on:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run build
+      - run: python -m pytest tests/
+      - name: Validate NLP accuracy
+        run: python scripts/eval_model.py
+          --threshold 0.96
+  deploy:
+    needs: ci
+    if: success()
+    steps:
+      - uses: peaceiris/actions-gh-pages@v4`}</pre>
           </div>
           <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 12, padding: "1.5rem" }}>
-            <h3 style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.6rem", color: "#e2e8f0" }}>🛡️ ¿Por qué importa?</h3>
-            <p style={{ fontSize: "0.75rem", color: "#a0aec0", lineHeight: 1.7 }}>
-              Aerya atiende clientes 24/7. Un deploy mal hecho puede dejar a miles de personas sin respuesta. Con CI/CD automatizado, cada cambio se valida con tests, se escanea por vulnerabilidades y se despliega sin que ningún usuario lo note.
+            <h3 style={{ fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.8rem", color: "#e2e8f0" }}>🛡️ Por qué CI/CD es crítico para IA</h3>
+            <p style={{ fontSize: "0.73rem", color: "#a0aec0", lineHeight: 1.75, marginBottom: "0.7rem" }}>
+              En sistemas de IA, un modelo que se degradó silenciosamente es peor que un crash obvio. El pipeline valida que el modelo de sentimiento mantiene <span style={{ color: G }}>≥96% de precisión</span> en cada deploy — si baja, el release se bloquea automáticamente.
+            </p>
+            <p style={{ fontSize: "0.73rem", color: "#a0aec0", lineHeight: 1.75 }}>
+              Aerya atiende clientes 24/7. Un deploy mal hecho deja a miles de personas sin respuesta. Con CI/CD, cada cambio se valida, escanea por vulnerabilidades y despliega sin que ningún usuario lo note.
             </p>
           </div>
         </div>
@@ -598,12 +850,13 @@ export default function App() {
             <p>Conozco el negocio de Back9 — ticketing, booking, pagos. <span className="em">Esta misma página es prueba de lo que hago</span>: construí un análisis de sentimiento real con backend en FastAPI, desplegado en Render, conectado a la API de Claude. Funcional, seguro y por $5.</p>
           </div>
           <div>
+            <div style={{ fontFamily: "monospace", fontSize: "0.55rem", color: "#6b7a90", letterSpacing: 1, marginBottom: "0.8rem", textTransform: "uppercase" }}>Stack usado en esta propuesta</div>
             {[
-              { i: "🧠", t: "IA & Deep Learning", tags: ["PyTorch","TensorFlow","LSTM","Transformers","BERT","NLP"] },
-              { i: "📊", t: "Datos & ML", tags: ["Pandas","NumPy","Sklearn","FAISS","Embeddings","Big Data"] },
-              { i: "⚡", t: "Infraestructura", tags: ["Docker","Kubernetes","AWS","Terraform","CI/CD"] },
-              { i: "🔒", t: "Producción", tags: ["MLOps","ONNX","TorchServe","PCI DSS","Monitoring"] },
-              { i: "💻", t: "Desarrollo", tags: ["Python","FastAPI","Node.js","MongoDB","Redis","LangChain"] },
+              { i: "⚛️", t: "Frontend", tags: ["React 18", "Vite", "JetBrains Mono", "Sora", "Canvas API", "IntersectionObserver"] },
+              { i: "🐍", t: "Backend", tags: ["FastAPI", "Python 3.11", "Uvicorn", "Pydantic", "CORS Middleware"] },
+              { i: "🧠", t: "IA & NLP", tags: ["Claude API (Haiku)", "Anthropic SDK", "BiLSTM+Attention", "PyTorch 2.1", "ONNX"] },
+              { i: "🚀", t: "Deploy & CI/CD", tags: ["GitHub Actions", "GitHub Pages", "Railway", "Render", "Docker", "gh-pages"] },
+              { i: "🔒", t: "Arquitectura", tags: ["Backend Proxy", "API Key server-side", "Blue-Green Deploy", "Env Vars", "CORS config"] },
             ].map((c, i) => (
               <div key={i} className="stack-cat">
                 <h4>{c.i} {c.t}</h4>
